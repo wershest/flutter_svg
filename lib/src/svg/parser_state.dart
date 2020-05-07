@@ -698,6 +698,8 @@ class SvgParserState {
   bool _inDefs = false;
   List<XmlElementAttribute> _currentAttributes;
   XmlStartElementEvent _currentStartElement;
+  final Map<int, XmlStartElementEvent> _parentStartElements =
+      <int, XmlStartElementEvent>{};
 
   /// The current depth of the reader in the XML hierarchy.
   int depth = 0;
@@ -754,10 +756,15 @@ class SvgParserState {
       yield event;
 
       if (isSelfClosing || event is XmlEndElementEvent) {
+        _parentStartElements[depth] = null;
         depth -= 1;
         assert(depth >= 0);
         _currentAttributes = <XmlElementAttribute>[];
         _currentStartElement = null;
+      } else {
+        if (event is XmlStartElementEvent) {
+          _parentStartElements[depth] = event;
+        }
       }
       if (depth < subtreeStartDepth) {
         return;
@@ -834,25 +841,82 @@ class SvgParserState {
       return false;
     }
 
+    final List<XmlElementAttribute> attrs = <XmlElementAttribute>[];
+
+    for (XmlElementAttribute attr in _currentAttributes) {
+      final String attrName =
+          attr.name.replaceFirst('${attr.namespacePrefix}:', '');
+
+      _addToProcessedAttributes(attrName, attr, attrs);
+    }
+
     final DrawableParent parent = _parentDrawables.last.drawable;
     final DrawableStyle parentStyle = parent.style;
-    final Path path = pathFunc(attributes);
+    final Path path = pathFunc(attrs);
     final DrawableStyleable drawable = DrawableShape(
       path,
       parseStyle(
-        attributes,
+        attrs,
         _definitions,
         path.getBounds(),
         parentStyle,
         defaultFillColor: colorBlack,
       ),
-      transform: parseTransform(getAttribute(attributes, 'transform'))?.storage,
+      transform: parseTransform(getAttribute(attrs, 'transform'))?.storage,
     );
     final bool isIri = checkForIri(drawable);
     if (!_inDefs || !isIri) {
       parent.children.add(drawable);
     }
     return true;
+  }
+
+  void _addToProcessedAttributes(
+    String attrName,
+    XmlElementAttribute attr,
+    List<XmlElementAttribute> attrs,
+  ) {
+    if (attrName == 'width' || attrName == 'height') {
+      if (attr.value.endsWith('%')) {
+        int currentDepth = depth;
+        String pVal;
+        double multiplier = 1.0;
+        do {
+          if (_parentStartElements[currentDepth] != null) {
+            final XmlElementAttribute matched =
+                _parentStartElements[currentDepth].attributes.firstWhere(
+                    (XmlElementAttribute el) => el.name == attr.name,
+                    orElse: () => null);
+
+            if (matched != null) {
+              pVal = matched.value;
+
+              if (pVal.endsWith('%')) {
+                multiplier *=
+                    double.parse(pVal.substring(0, pVal.length - 1)) * 0.01;
+              } else {
+                break;
+              }
+            }
+          }
+        } while (--currentDepth > 0);
+
+        if (pVal != null) {
+          attrs.add(XmlElementAttribute(
+            attr.name,
+            (double.parse(pVal) *
+                    double.parse(
+                        attr.value.substring(0, attr.value.length - 1)) *
+                    0.01 *
+                    multiplier)
+                .toStringAsFixed(0),
+            attr.attributeType,
+          ));
+          return;
+        }
+      }
+    }
+    attrs.add(attr);
   }
 
   /// Potentially handles a starting element.
