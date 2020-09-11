@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' show window;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -273,7 +274,7 @@ void main() {
   });
 
   testWidgets('SvgPicture.network', (WidgetTester tester) async {
-    HttpOverrides.runZoned(() async {
+    await HttpOverrides.runZoned(() async {
       when(mockResponse.statusCode).thenReturn(200);
       final GlobalKey key = GlobalKey();
       await tester.pumpWidget(
@@ -311,7 +312,7 @@ void main() {
   });
 
   testWidgets('SvgPicture.network HTTP exception', (WidgetTester tester) async {
-    HttpOverrides.runZoned(() async {
+    await HttpOverrides.runZoned(() async {
       expect(() async {
         when(mockResponse.statusCode).thenReturn(400);
         await tester.pumpWidget(
@@ -444,6 +445,158 @@ void main() {
         'test');
     final UnsupportedError error = tester.takeException() as UnsupportedError;
     expect(error.message, 'Unsupported nested <svg> element.');
+  });
+
+  testWidgets('Can take AlignmentDirectional', (WidgetTester tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: SvgPicture.string(
+        svgStr,
+        alignment: AlignmentDirectional.bottomEnd,
+      ),
+    ));
+    expect(find.byType(SvgPicture), findsOneWidget);
+  });
+
+  testWidgets('SvgPicture.string respects clipBehavior',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: SvgPicture.string(svgStr),
+    ));
+    await tester.pumpAndSettle();
+
+    // Check that the render object has received the default clip behavior.
+    final RenderFittedBox renderObject =
+        tester.allRenderObjects.whereType<RenderFittedBox>().first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // Pump a new widget to check that the render object can update its clip
+    // behavior.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SvgPicture.string(svgStr, clipBehavior: Clip.antiAlias),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(renderObject.clipBehavior, equals(Clip.antiAlias));
+  });
+
+  testWidgets('SvgPicture.asset respects clipBehavior',
+      (WidgetTester tester) async {
+    final MockAssetBundle mockAsset = MockAssetBundle();
+    when(mockAsset.loadString('test.svg'))
+        .thenAnswer((_) => Future<String>.value(svgStr));
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: SvgPicture.asset(
+        'test.svg',
+        bundle: mockAsset,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Check that the render object has received the default clip behavior.
+    final RenderFittedBox renderObject =
+        tester.allRenderObjects.whereType<RenderFittedBox>().first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // Pump a new widget to check that the render object can update its clip
+    // behavior.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SvgPicture.asset(
+          'test.svg',
+          bundle: mockAsset,
+          clipBehavior: Clip.antiAlias,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(renderObject.clipBehavior, equals(Clip.antiAlias));
+  });
+
+  testWidgets('SvgPicture.memory respects clipBehavior',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: SvgPicture.memory(svgBytes),
+    ));
+    await tester.pumpAndSettle();
+
+    // Check that the render object has received the default clip behavior.
+    final RenderFittedBox renderObject =
+        tester.allRenderObjects.whereType<RenderFittedBox>().first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // Pump a new widget to check that the render object can update its clip
+    // behavior.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SvgPicture.memory(svgBytes, clipBehavior: Clip.antiAlias),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(renderObject.clipBehavior, equals(Clip.antiAlias));
+  });
+
+  testWidgets('SvgPicture.network respects clipBehavior',
+      (WidgetTester tester) async {
+    await HttpOverrides.runZoned(() async {
+      when(mockResponse.statusCode).thenReturn(200);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SvgPicture.network('test.svg'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check that the render object has received the default clip behavior.
+      final RenderFittedBox renderObject =
+          tester.allRenderObjects.whereType<RenderFittedBox>().first;
+      expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+      // Pump a new widget to check that the render object can update its clip
+      // behavior.
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SvgPicture.network('test.svg', clipBehavior: Clip.antiAlias),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(renderObject.clipBehavior, equals(Clip.antiAlias));
+    }, createHttpClient: (SecurityContext c) => mockHttpClient);
+  });
+
+  testWidgets('SvgPicture respects clipBehavior', (WidgetTester tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: SvgPicture.string(svgStr),
+    ));
+    await tester.pumpAndSettle();
+
+    // Check that the render object has received the default clip behavior.
+    final RenderFittedBox renderObject =
+        tester.allRenderObjects.whereType<RenderFittedBox>().first;
+    expect(renderObject.clipBehavior, equals(Clip.hardEdge));
+
+    // Pump a new widget to check that the render object can update its clip
+    // behavior.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SvgPicture.string(svgStr, clipBehavior: Clip.antiAlias),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(renderObject.clipBehavior, equals(Clip.antiAlias));
   });
 }
 
