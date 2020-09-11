@@ -79,7 +79,7 @@ class _Elements {
   static Future<void> svg(SvgParserState parserState) {
     final DrawableViewport viewBox = parseViewBox(parserState.attributes);
     final String id = parserState.attribute('id', def: '');
-    
+
     // TODO(dnfield): Support nested SVG elements. https://github.com/dnfield/flutter_svg/issues/132
     if (parserState._root != null) {
       FlutterError.reportError(FlutterErrorDetails(
@@ -851,9 +851,9 @@ class SvgParserState {
       return false;
     }
 
-    final List<XmlElementAttribute> attrs = <XmlElementAttribute>[];
+    final List<XmlEventAttribute> attrs = <XmlEventAttribute>[];
 
-    for (XmlElementAttribute attr in _currentAttributes) {
+    for (XmlEventAttribute attr in _currentAttributes) {
       final String attrName =
           attr.name.replaceFirst('${attr.namespacePrefix}:', '');
 
@@ -884,8 +884,8 @@ class SvgParserState {
 
   void _addToProcessedAttributes(
     String attrName,
-    XmlElementAttribute attr,
-    List<XmlElementAttribute> attrs,
+    XmlEventAttribute attr,
+    List<XmlEventAttribute> attrs,
   ) {
     if (attrName == 'width' || attrName == 'height') {
       if (attr.value.endsWith('%')) {
@@ -894,9 +894,9 @@ class SvgParserState {
         double multiplier = 1.0;
         do {
           if (_parentStartElements[currentDepth] != null) {
-            final XmlElementAttribute matched =
-                _parentStartElements[currentDepth].attributes.firstWhere(
-                    (XmlElementAttribute el) => el.name == attr.name,
+            final XmlEventAttribute matched = _parentStartElements[currentDepth]
+                .attributes
+                .firstWhere((XmlEventAttribute el) => el.name == attr.name,
                     orElse: () => null);
 
             if (matched != null) {
@@ -913,7 +913,7 @@ class SvgParserState {
         } while (--currentDepth > 0);
 
         if (pVal != null) {
-          attrs.add(XmlElementAttribute(
+          attrs.add(XmlEventAttribute(
             attr.name,
             (double.parse(pVal) *
                     double.parse(
